@@ -1,16 +1,22 @@
 """
 TLB Scraper – South Africa
-Scrapes TLB (Tractor Loader Backhoe) machine listings priced under R450 000
+Scrapes JCB 3CX listings priced between R350 000 and R450 000
 from Mascus South Africa and saves the results to data/listings.json.
+
+Requires Python 3.10+.
 """
 
 import json
-import os
 import re
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+if sys.version_info < (3, 10):
+    raise RuntimeError(
+        f"Python 3.10+ is required; running {sys.version_info.major}.{sys.version_info.minor}"
+    )
 
 import requests
 from bs4 import BeautifulSoup
@@ -18,6 +24,7 @@ from bs4 import BeautifulSoup
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+MIN_PRICE_ZAR = 350_000
 MAX_PRICE_ZAR = 450_000
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_FILE = BASE_DIR / "data" / "listings.json"
@@ -30,11 +37,12 @@ HEADERS = {
     "Accept-Language": "en-ZA,en;q=0.9",
 }
 
-# Mascus ZA search URL for used backhoe loaders with price filter
+# Mascus ZA search URL for JCB 3CX listings with price range filter
 MASCUS_BASE_URL = "https://www.mascus.co.za"
 MASCUS_SEARCH_URL = (
     "https://www.mascus.co.za/construction/used-backhoe-loaders"
-    "?pricemax=450000&currency=ZAR&sort=price_asc"
+    f"?q=JCB+3CX&pricemin={MIN_PRICE_ZAR}&pricemax={MAX_PRICE_ZAR}"
+    "&currency=ZAR&sort=price_asc"
 )
 
 
@@ -104,8 +112,8 @@ def parse_mascus_card(card) -> dict | None:
     price_str = price_el.get_text(strip=True) if price_el else ""
     price = clean_price(price_str)
 
-    # Skip listings that are over the budget or have no price
-    if price is None or price > MAX_PRICE_ZAR:
+    # Skip listings outside the price range or with no price
+    if price is None or price < MIN_PRICE_ZAR or price > MAX_PRICE_ZAR:
         return None
 
     # Year
@@ -188,7 +196,7 @@ def deduplicate(listings: list[dict]) -> list[dict]:
 
 def main() -> None:
     print("=" * 60)
-    print("TLB Scraper – South Africa (under R450 000)")
+    print("JCB 3CX Scraper – South Africa (R350 000 – R450 000)")
     print("=" * 60)
 
     listings: list[dict] = []
@@ -205,6 +213,7 @@ def main() -> None:
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "updated_at": datetime.now(timezone.utc).isoformat(),
+        "min_price_zar": MIN_PRICE_ZAR,
         "max_price_zar": MAX_PRICE_ZAR,
         "count": len(listings),
         "listings": listings,

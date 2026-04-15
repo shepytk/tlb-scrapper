@@ -6,7 +6,8 @@
  * user input (search / price range / brand / province / sort).
  */
 
-const DATA_URL = '../data/listings.json';
+const DATA_URL  = '../data/listings.json';
+const MIN_PRICE = 350_000;
 const MAX_PRICE = 450_000;
 
 let allListings = [];
@@ -107,7 +108,7 @@ function applyFilters() {
   const sort    = sortSelect.value;
 
   let results = allListings.filter(l => {
-    if (l.price_zar > maxPri) return false;
+    if (l.price_zar < MIN_PRICE || l.price_zar > maxPri) return false;
     if (brand && l.brand !== brand) return false;
     if (province && extractProvince(l.location) !== province) return false;
     if (query) {
@@ -143,13 +144,20 @@ function renderListings(listings) {
   }
   noResults.classList.add('hidden');
   grid.innerHTML = listings.map(buildCard).join('');
+
+  // Attach image-error handlers after inserting markup (avoids inline onerror)
+  grid.querySelectorAll('.card-img-wrap img').forEach(img => {
+    img.addEventListener('error', () => {
+      img.style.display = 'none';
+      const placeholder = img.parentElement.querySelector('.card-img-placeholder');
+      if (placeholder) placeholder.style.display = 'flex';
+    });
+  });
 }
 
 function buildCard(l) {
   const imgHtml = l.image_url
-    ? `<img src="${escHtml(l.image_url)}" alt="${escHtml(l.title)}"
-            loading="lazy"
-            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    ? `<img src="${safeUrl(l.image_url)}" alt="${escHtml(l.title)}" loading="lazy">`
     : '';
 
   const yearChip     = l.year ? `<span class="meta-chip">📅 ${l.year}</span>` : '';
@@ -173,7 +181,7 @@ function buildCard(l) {
         </div>
         <div class="card-actions">
           <a class="btn-view"
-             href="${escHtml(l.listing_url)}"
+             href="${safeUrl(l.listing_url)}"
              target="_blank"
              rel="noopener noreferrer">
             View Listing →
@@ -181,6 +189,17 @@ function buildCard(l) {
         </div>
       </div>
     </article>`;
+}
+
+/** Allow only http/https URLs; fall back to '#' for anything else. */
+function safeUrl(url) {
+  try {
+    const parsed = new URL(String(url ?? ''));
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return escHtml(url);
+    }
+  } catch (_) { /* invalid URL */ }
+  return '#';
 }
 
 function escHtml(str) {
